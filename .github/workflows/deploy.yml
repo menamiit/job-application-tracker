@@ -1,0 +1,44 @@
+name: Deploy to AWS
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Deploy frontend to S3
+        run: |
+          echo "Deploying frontend to S3..."
+          # aws s3 sync frontend/ s3://YOUR_BUCKET_NAME --delete
+
+      - name: Invalidate CloudFront cache
+        run: |
+          echo "Invalidating CloudFront..."
+          # aws cloudfront create-invalidation --distribution-id YOUR_DIST_ID --paths "/*"
+
+      - name: Deploy Lambda functions
+        run: |
+          echo "Deploying Lambda functions..."
+          cd backend
+          npm install
+          # Package and deploy Lambda functions
+
+      - name: Notify on success
+        if: success()
+        run: echo "✅ Deployment successful!"
+
+      - name: Notify on failure
+        if: failure()
+        run: echo "❌ Deployment failed!"
