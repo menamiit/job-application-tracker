@@ -1,5 +1,5 @@
 // Configuration
-const API_URL = process.env.REACT_APP_API_URL || 'https://your-api-id.execute-api.us-east-1.amazonaws.com/prod';
+const API_URL = 'http://localhost:5000';
 const form = document.getElementById('applicationForm');
 const container = document.getElementById('applicationsContainer');
 
