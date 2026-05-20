@@ -1,5 +1,5 @@
 // Configuration
-const API_URL = 'http://localhost:5000';
+const API_URL = 'http://3.230.125.155:5000';
 const form = document.getElementById('applicationForm');
 const container = document.getElementById('applicationsContainer');
 
