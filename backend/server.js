@@ -1,7 +1,8 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
 const app = express();
@@ -10,14 +11,28 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Secrets (generic for demo)
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+const BCRYPT_ROUNDS = 10;
+
 // MongoDB Connection
 mongoose.connect(process.env.MONGODB_URI)
     .then(() => console.log('MongoDB connected'))
     .catch(err => console.error('MongoDB error:', err));
 
-// Schema
+// User Schema
+const userSchema = new mongoose.Schema({
+    email: { type: String, unique: true, required: true },
+    password: { type: String, required: true },
+    createdAt: { type: Date, default: Date.now },
+});
+
+const User = mongoose.model('User', userSchema);
+
+// Application Schema
 const applicationSchema = new mongoose.Schema({
     applicationId: { type: String, unique: true, required: true },
+    userId: { type: String, required: true },
     company: { type: String, required: true },
     position: { type: String, required: true },
     jobLink: String,
@@ -29,8 +44,75 @@ const applicationSchema = new mongoose.Schema({
 
 const Application = mongoose.model('Application', applicationSchema);
 
+// JWT Middleware
+const authenticateToken = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) return res.status(401).json({ error: 'No token provided' });
+
+    jwt.verify(token, JWT_SECRET, (err, user) => {
+        if (err) return res.status(403).json({ error: 'Invalid token' });
+        req.user = user;
+        next();
+    });
+};
+
+// AUTH ENDPOINTS
+// Register
+app.post('/auth/register', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+
+        if (!email || !password) {
+            return res.status(400).json({ error: 'Email and password required' });
+        }
+
+        const existingUser = await User.findOne({ email });
+        if (existingUser) {
+            return res.status(400).json({ error: 'Email already registered' });
+        }
+
+        const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
+        const user = await User.create({ email, password: hashedPassword });
+
+        res.status(201).json({ success: true, message: 'User registered' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Registration failed' });
+    }
+});
+
+// Login
+app.post('/auth/login', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+
+        if (!email || !password) {
+            return res.status(400).json({ error: 'Email and password required' });
+        }
+
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(401).json({ error: 'Invalid email or password' });
+        }
+
+        const isPasswordValid = await bcrypt.compare(password, user.password);
+        if (!isPasswordValid) {
+            return res.status(401).json({ error: 'Invalid email or password' });
+        }
+
+        const token = jwt.sign({ userId: user._id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
+        res.json({ success: true, token });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Login failed' });
+    }
+});
+
+// APPLICATION ENDPOINTS (Protected)
 // CREATE
-app.post('/applications', async (req, res) => {
+app.post('/applications', authenticateToken, async (req, res) => {
     try {
         const { company, position, jobLink, notes } = req.body;
 
@@ -39,8 +121,9 @@ app.post('/applications', async (req, res) => {
         }
 
         const applicationId = require('crypto').randomUUID();
-        const app = await Application.create({
+        const application = await Application.create({
             applicationId,
+            userId: req.user.userId,
             company,
             position,
             jobLink: jobLink || '',
@@ -50,7 +133,7 @@ app.post('/applications', async (req, res) => {
             createdAt: Date.now(),
         });
 
-        res.status(201).json({ success: true, applicationId: app.applicationId });
+        res.status(201).json({ success: true, applicationId: application.applicationId });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Failed to create application' });
@@ -58,9 +141,9 @@ app.post('/applications', async (req, res) => {
 });
 
 // READ
-app.get('/applications', async (req, res) => {
+app.get('/applications', authenticateToken, async (req, res) => {
     try {
-        const applications = await Application.find();
+        const applications = await Application.find({ userId: req.user.userId });
         res.json({ applications });
     } catch (error) {
         console.error(error);
@@ -69,12 +152,12 @@ app.get('/applications', async (req, res) => {
 });
 
 // UPDATE
-app.put('/applications/:id', async (req, res) => {
+app.put('/applications/:id', authenticateToken, async (req, res) => {
     try {
         const { status, notes } = req.body;
 
         await Application.findOneAndUpdate(
-            { applicationId: req.params.id },
+            { applicationId: req.params.id, userId: req.user.userId },
             { status, notes },
             { new: true }
         );
@@ -87,9 +170,9 @@ app.put('/applications/:id', async (req, res) => {
 });
 
 // DELETE
-app.delete('/applications/:id', async (req, res) => {
+app.delete('/applications/:id', authenticateToken, async (req, res) => {
     try {
-        await Application.findOneAndDelete({ applicationId: req.params.id });
+        await Application.findOneAndDelete({ applicationId: req.params.id, userId: req.user.userId });
         res.json({ success: true });
     } catch (error) {
         console.error(error);

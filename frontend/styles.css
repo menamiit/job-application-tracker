@@ -36,6 +36,9 @@ header {
     color: white;
     border-radius: 8px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
 header h1 {
@@ -144,6 +147,15 @@ textarea {
 
 .btn-delete:hover {
     background-color: #c82333;
+}
+
+.btn-logout {
+    background-color: #ff6b6b;
+    color: white;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
 }
 
 .list-section {

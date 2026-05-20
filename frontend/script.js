@@ -3,8 +3,21 @@ const API_URL = 'https://d2oa52p6s2q6q1.cloudfront.net';
 const form = document.getElementById('applicationForm');
 const container = document.getElementById('applicationsContainer');
 
-// Load applications on page load
-document.addEventListener('DOMContentLoaded', loadApplications);
+// Check auth on load
+document.addEventListener('DOMContentLoaded', () => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+        window.location.href = 'login.html';
+        return;
+    }
+    loadApplications();
+});
+
+// Logout
+function logout() {
+    localStorage.removeItem('token');
+    window.location.href = 'login.html';
+}
 
 // Form submission
 form.addEventListener('submit', async (e) => {
@@ -23,9 +36,13 @@ async function createApplication() {
     };
 
     try {
+        const token = localStorage.getItem('token');
         const response = await fetch(`${API_URL}/applications`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+            },
             body: JSON.stringify(data),
         });
 
@@ -44,7 +61,10 @@ async function loadApplications() {
     try {
         container.innerHTML = '<p class="loading">Loading applications...</p>';
 
-        const response = await fetch(`${API_URL}/applications`);
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_URL}/applications`, {
+            headers: { 'Authorization': `Bearer ${token}` },
+        });
         if (!response.ok) throw new Error('Failed to load applications');
 
         const data = await response.json();
@@ -110,9 +130,13 @@ async function editStatus(id) {
     if (!status || !statuses.includes(status)) return;
 
     try {
+        const token = localStorage.getItem('token');
         const response = await fetch(`${API_URL}/applications/${id}`, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+            },
             body: JSON.stringify({ status }),
         });
 
@@ -131,8 +155,10 @@ async function deleteApplication(id) {
     if (!confirm('Are you sure you want to delete this application?')) return;
 
     try {
+        const token = localStorage.getItem('token');
         const response = await fetch(`${API_URL}/applications/${id}`, {
             method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` },
         });
 
         if (!response.ok) throw new Error('Failed to delete application');
